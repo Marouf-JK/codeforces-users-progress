@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Codeforces Handle Dashboard</title>
+
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div>
+        <h1 id="pageTitle">Codeforces Progress</h1>
+        <p class="subtitle">Type any Codeforces handle to fetch fresh public submissions and build the dashboard in your browser.</p>
+      </div>
+      <div class="status-pill" id="dataStatus">
+        <span class="status-dot" aria-hidden="true"></span>
+        Ready
+      </div>
+    </header>
+
+    <form class="lookup-card" id="handleForm">
+      <input class="handle-input" id="handleInput" name="handle" type="text" placeholder="Enter Codeforces handle" autocomplete="off" />
+      <button class="load-button" id="loadButton" type="submit">Load Dashboard</button>
+    </form>
+
+    <div class="message" id="errorMessage" role="alert"></div>
+
+    <section class="empty-state" id="emptyState">
+      <div class="empty-state-card">
+        <h2>Enter a Codeforces handle to load the dashboard</h2>
+        <p>The dashboard will fetch public submissions only after you submit a handle.</p>
+      </div>
+    </section>
+
+    <section class="dashboard-shell is-hidden" id="dashboardShell">
+      <nav class="tabs" aria-label="Dashboard sections">
+        <button class="tab-button is-active" type="button" data-tab="overview">Overview</button>
+        <button class="tab-button" type="button" data-tab="skills">Skills</button>
+        <button class="tab-button" type="button" data-tab="verdicts">Verdicts & Consistency</button>
+        <button class="tab-button" type="button" data-tab="attempts">Attempts</button>
+        <button class="tab-button" type="button" data-tab="monthly">Monthly</button>
+        <button class="tab-button" type="button" data-tab="contests">Contests</button>
+        <button class="tab-button" type="button" data-tab="problems">Problems</button>
+      </nav>
+
+      <section class="tab-page is-active" data-tab-page="overview">
+        <section class="summary-grid" id="summaryGrid" aria-label="Overall summary"></section>
+        <p class="api-note">
+          <span id="profileCountNote">Codeforces profile solved count may differ from the public user.status API. This dashboard uses public API submissions.</span>
+        </p>
+        <details class="panel debug-details">
+          <summary>Debug details</summary>
+          <div class="stat-list" id="debugPanel"></div>
+          <p class="metric-subtext">Codeforces profile solved count may use internal counting rules different from public API calculation.</p>
+        </details>
+      </section>
+
+      <section class="tab-page" data-tab-page="skills">
+        <section class="insights-grid" aria-label="Skills analytics">
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Rating Breakdown</h2>
+            </div>
+            <div class="table-list" id="ratingBreakdown"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Tags Breakdown</h2>
+            </div>
+            <div class="table-list" id="tagsBreakdown"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="tab-page" data-tab-page="verdicts">
+        <section class="insights-grid" aria-label="Verdicts and consistency">
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Verdict Analysis</h2>
+            </div>
+            <div class="table-list" id="verdictAnalysis"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Consistency</h2>
+            </div>
+            <div class="stat-list" id="consistencyStats"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="tab-page" data-tab-page="attempts">
+        <section class="insights-grid" aria-label="Attempts analytics">
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Attempts Before First AC</h2>
+            </div>
+            <div class="table-list" id="attemptsAnalysis"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Repeated Accepted Problems</h2>
+            </div>
+            <div class="table-list" id="repeatedAccepted"></div>
+          </article>
+
+          <article class="panel wide-panel">
+            <div class="panel-header">
+              <h2>Best Training Day</h2>
+            </div>
+            <div class="table-list" id="bestTrainingDayDetails"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="tab-page" data-tab-page="monthly">
+        <section class="insights-grid" aria-label="Monthly analytics">
+          <article class="panel wide-panel">
+            <div class="panel-header">
+              <h2>Monthly Improvement</h2>
+            </div>
+            <div class="table-list" id="monthlyImprovement"></div>
+          </article>
+        </section>
+
+        <section class="toolbar" aria-label="Month list controls">
+          <h2>Monthly Activity</h2>
+          <div class="legend" aria-label="Solved problem color legend">
+            <span class="legend-item"><span class="swatch" style="background: var(--gray);"></span>0</span>
+            <span class="legend-item"><span class="swatch" style="background: var(--light);"></span>1-2</span>
+            <span class="legend-item"><span class="swatch" style="background: var(--medium);"></span>3-5</span>
+            <span class="legend-item"><span class="swatch" style="background: var(--strong);"></span>6+</span>
+          </div>
+        </section>
+
+        <section class="months" id="monthsContainer" aria-label="Monthly solved problem cards"></section>
+      </section>
+
+      <section class="tab-page" data-tab-page="contests">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Contest Performance</h2>
+          </div>
+          <div class="table-list" id="contestPerformance"></div>
+        </article>
+      </section>
+
+      <section class="tab-page" data-tab-page="problems">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Problem List View</h2>
+            <input class="filter-input" id="problemFilter" type="search" placeholder="Search problems, tags, rating, verdict" autocomplete="off" />
+          </div>
+          <div class="table-list" id="problemListView"></div>
+        </article>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
