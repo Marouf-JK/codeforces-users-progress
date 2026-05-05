@@ -1,3 +1,11 @@
+function addSafeEventListener(element, eventName, handler, elementName) {
+  if (element) {
+    element.addEventListener(eventName, handler);
+  } else {
+    console.warn("Missing optional element:", elementName);
+  }
+}
+
 function initDashboard() {
 const API_BASE = "https://codeforces.com/api/user.status";
     const RATING_API_BASE = "https://codeforces.com/api/user.rating";
@@ -79,14 +87,6 @@ const API_BASE = "https://codeforces.com/api/user.status";
         handleInput.disabled = isLoading;
       }
       setStatus(isLoading ? "Loading handle..." : "Ready", isLoading ? "loading" : "ready");
-    }
-
-    function bindEvent(element, eventName, handler, elementName) {
-      if (element) {
-        element.addEventListener(eventName, handler);
-      } else {
-        console.error("Missing element:", elementName);
-      }
     }
 
     function switchTab(tabName) {
@@ -892,7 +892,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
       (month.days || []).forEach((day) => daysGrid.appendChild(createDayBox(day)));
       panel.appendChild(daysGrid);
 
-      bindEvent(button, "click", () => {
+      addSafeEventListener(button, "click", () => {
         const isOpen = button.getAttribute("aria-expanded") === "true";
         button.setAttribute("aria-expanded", String(!isOpen));
         setPanelHeight(card, panel, !isOpen);
@@ -1042,10 +1042,10 @@ const API_BASE = "https://codeforces.com/api/user.status";
       return "Failed to load data";
     }
 
-    bindEvent(handleForm, "submit", (event) => {
+    addSafeEventListener(handleForm, "submit", (event) => {
       event.preventDefault();
       if (!handleInput) {
-        console.error("Missing element:", "handleInput");
+        console.warn("Missing optional element:", "handleInput");
         return;
       }
       loadDashboard(handleInput.value);
@@ -1053,27 +1053,27 @@ const API_BASE = "https://codeforces.com/api/user.status";
 
     if (tabButtons.length) {
       tabButtons.forEach((button) => {
-        bindEvent(button, "click", () => {
+        addSafeEventListener(button, "click", () => {
           switchTab(button.dataset.tab);
         }, "tab button");
       });
     } else {
-      console.error("Missing element:", "tabButtons");
+      console.warn("Missing optional element:", "tabButtons");
     }
 
-    bindEvent(problemFilter, "input", () => {
+    addSafeEventListener(problemFilter, "input", () => {
       if (currentAnalysis) {
         renderProblems(currentAnalysis);
       }
     }, "problemFilter");
 
-    bindEvent(window, "resize", () => {
+    addSafeEventListener(window, "resize", () => {
       document.querySelectorAll(".month-card.is-open").forEach((card) => {
         const panel = card.querySelector(".month-panel");
         if (panel) {
           panel.style.maxHeight = `${panel.scrollHeight}px`;
         } else {
-          console.error("Missing element:", "month panel");
+          console.warn("Missing optional element:", "month panel");
         }
       });
     }, "window");
@@ -1082,7 +1082,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initDashboard);
+  addSafeEventListener(document, "DOMContentLoaded", initDashboard, "document");
 } else {
   initDashboard();
 }
