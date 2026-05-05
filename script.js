@@ -264,51 +264,39 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     async function fetchOfficialSolved(handle) {
-      console.log("Fetching profile HTML for:", handle);
-      const profileUrl = `https://codeforces.com/profile/${encodeURIComponent(handle)}`;
+  console.log("Fetching official solved from backend:", handle);
 
-      try {
-        const html = await fetchProfileHtmlViaProxy(profileUrl);
-        const doc = new DOMParser().parseFromString(html, "text/html");
-        const counters = [...doc.querySelectorAll("._UserActivityFrame_counterValue")];
-        let solvedCounter = counters[0] || null;
+  try {
+    const response = await fetch(`https://YOUR_RENDER_URL/api/total-solved?handle=${encodeURIComponent(handle)}`);
 
-        for (const counter of counters) {
-          const frameText = counter.closest("._UserActivityFrame")?.textContent || "";
-          if (/solved/i.test(frameText)) {
-            solvedCounter = counter;
-            break;
-          }
-        }
-
-        const match = solvedCounter?.textContent?.match(/\d+/);
-        const fallbackText = doc.body?.textContent || "";
-        const fallbackMatch = fallbackText.match(/Solved\s+for\s+all\s+time\s*(\d+)\s+problems/i)
-          || fallbackText.match(/(\d+)\s+problems\s+Solved\s+for\s+all\s+time/i);
-        const solvedMatch = match || fallbackMatch;
-
-        if (!solvedMatch) {
-          throw new Error("Could not parse solved count from profile HTML.");
-        }
-
-        const totalSolved = Number(solvedMatch[1] || solvedMatch[0]);
-        console.log("Parsed solved count:", totalSolved);
-
-        return {
-          value: totalSolved,
-          available: true,
-          error: null
-        };
-      } catch (error) {
-        console.warn("Official profile solved count unavailable.", error);
-        console.log("Parsed solved count:", null);
-        return {
-          value: null,
-          available: false,
-          error
-        };
-      }
+    if (!response.ok) {
+      throw new Error(`Backend error: ${response.status}`);
     }
+
+    const data = await response.json();
+
+    console.log("Backend totalSolved:", data.totalSolved);
+
+    if (!data.totalSolved) {
+      throw new Error("No solved count returned");
+    }
+
+    return {
+      value: data.totalSolved,
+      available: true,
+      error: null
+    };
+
+  } catch (error) {
+    console.warn("Failed to fetch official solved:", error);
+
+    return {
+      value: null,
+      available: false,
+      error
+    };
+  }
+}
 
     async function fetchProfileHtmlViaProxy(profileUrl) {
       const errors = [];
