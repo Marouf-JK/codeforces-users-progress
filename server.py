@@ -21,14 +21,18 @@ def json_response(handler, status, payload):
 
 
 def fetch_profile_html(handle):
-    request = urllib.request.Request(
-        PROFILE_URL.format(handle=urllib.parse.quote(handle)),
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "text/html,application/xhtml+xml",
-            "Accept-Language": "en-US,en;q=0.9",
-        },
-    )
+    url = PROFILE_URL.format(handle=urllib.parse.quote(handle))
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://codeforces.com/",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+    request = urllib.request.Request(url, headers=headers)
 
     with urllib.request.urlopen(request, timeout=20) as response:
         status_code = response.status
@@ -37,11 +41,8 @@ def fetch_profile_html(handle):
 
     print(f"[total-solved] Codeforces status code: {status_code}")
     print(f"[total-solved] Final URL: {final_url}")
-    print(f"[total-solved] HTML preview: {html_text[:500]!r}")
-    print(
-        f"[total-solved] Contains {COUNTER_CLASS}: "
-        f"{COUNTER_CLASS in html_text}"
-    )
+    print(f"[total-solved] Contains {COUNTER_CLASS}: {COUNTER_CLASS in html_text}")
+
     return html_text, status_code, final_url
 
 
