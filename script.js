@@ -9,10 +9,6 @@ function addSafeEventListener(element, eventName, handler, elementName) {
 function initDashboard() {
 const API_BASE = "https://codeforces.com/api/user.status";
     const RATING_API_BASE = "https://codeforces.com/api/user.rating";
-    const CORS_PROXIES = [
-      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-      (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
-    ];
     const TIME_ZONE = "Asia/Amman";
 
     const pageTitle = document.querySelector("#pageTitle");
@@ -263,62 +259,6 @@ const API_BASE = "https://codeforces.com/api/user.status";
       return payload.result || [];
     }
 
-    async function fetchOfficialSolved(handle) {
-  console.log("Fetching official solved from backend:", handle);
-
-  try {
-    const response = await fetch(`https://YOUR_RENDER_URL/api/total-solved?handle=${encodeURIComponent(handle)}`);
-
-    if (!response.ok) {
-      throw new Error(`Backend error: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    console.log("Backend totalSolved:", data.totalSolved);
-
-    if (!data.totalSolved) {
-      throw new Error("No solved count returned");
-    }
-
-    return {
-      value: data.totalSolved,
-      available: true,
-      error: null
-    };
-
-  } catch (error) {
-    console.warn("Failed to fetch official solved:", error);
-
-    return {
-      value: null,
-      available: false,
-      error
-    };
-  }
-}
-
-    async function fetchProfileHtmlViaProxy(profileUrl) {
-      const errors = [];
-
-      for (const makeProxyUrl of CORS_PROXIES) {
-        const url = makeProxyUrl(profileUrl);
-
-        try {
-          const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Profile proxy returned HTTP ${response.status}.`);
-        }
-
-          return await response.text();
-      } catch (error) {
-          errors.push(error.message);
-      }
-    }
-
-      throw new Error(`All profile proxies failed: ${errors.join("; ")}`);
-    }
-
     function analyzeSubmissions(rawSubmissions, contestRatings = []) {
       const submissions = [...rawSubmissions].sort((a, b) => {
         return (a.creationTimeSeconds || 0) - (b.creationTimeSeconds || 0);
@@ -346,7 +286,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
         acceptedSubmissionsWithProblemsetName: 0,
         acceptedGymLikeSubmissions: 0,
         topSkippedAcceptedSubmissions: [],
-        note: "Codeforces profile solved count may use internal counting rules different from public API calculation."
+        note: "Debug values show how public user.status submissions are counted."
       };
 
       submissions.forEach((submission) => {
@@ -587,13 +527,13 @@ const API_BASE = "https://codeforces.com/api/user.status";
       };
     }
 
-    function renderDashboard(handle, analysis, officialProfileSolved) {
+    function renderDashboard(handle, analysis) {
       currentAnalysis = analysis;
       pageTitle.textContent = `${handle} Progress`;
       emptyState.classList.add("is-hidden");
       dashboardShell.classList.remove("is-hidden");
       switchTab("overview");
-      renderOverview(analysis, officialProfileSolved);
+      renderOverview(analysis);
       renderSkills(analysis);
       renderVerdictsConsistency(analysis);
       renderAttemptsPage(analysis);
@@ -602,8 +542,8 @@ const API_BASE = "https://codeforces.com/api/user.status";
       renderProblems(analysis);
     }
 
-    function renderOverview(analysis, officialProfileSolved) {
-      renderSummary(analysis, officialProfileSolved);
+    function renderOverview(analysis) {
+      renderSummary(analysis);
       renderDebugPanel(analysis.debug);
     }
 
@@ -636,19 +576,17 @@ const API_BASE = "https://codeforces.com/api/user.status";
       renderProblemList(analysis.problemList);
     }
 
-    function renderSummary(analysis, officialProfileSolved) {
+    function renderSummary(analysis) {
       const average = analysis.activeDays.length ? analysis.totalSolved / analysis.activeDays.length : 0;
       const bestDayText = analysis.bestDay
         ? `${analysis.bestDay.solved} on ${dateFormatter.format(parseDateKey(analysis.bestDay.date))}`
         : "No accepted submissions";
-      const officialValue = officialProfileSolved.available ? officialProfileSolved.value : "Could not load official solved count";
 
-      profileCountNote.textContent = officialProfileSolved.available
-        ? "Total solved comes from the Codeforces profile page. All detailed analytics use public user.status submissions."
-        : "Could not load official solved count. Analytics below still use public user.status submissions.";
+      if (profileCountNote) {
+        profileCountNote.textContent = "Detailed analytics are based on public Codeforces submissions.";
+      }
 
       const metrics = [
-        { label: "Total solved", value: officialValue, subtext: "Official Codeforces profile count" },
         { label: "Active days", value: analysis.activeDays.length, subtext: "Days with at least one solve" },
         { label: "Zero days", value: analysis.zeroDays.length, subtext: "Tracked days with no solves" },
         { label: "Average per active day", value: average.toFixed(2), subtext: "Unique problems per active day" },
@@ -973,13 +911,12 @@ const API_BASE = "https://codeforces.com/api/user.status";
       setLoading(true);
 
       try {
-        const [submissions, contestRatings, officialProfileSolved] = await Promise.all([
+        const [submissions, contestRatings] = await Promise.all([
           fetchSubmissions(cleanHandle),
-          fetchContestRatings(cleanHandle),
-          fetchOfficialSolved(cleanHandle)
+          fetchContestRatings(cleanHandle)
         ]);
         const analysis = analyzeSubmissions(submissions, contestRatings);
-        renderDashboard(cleanHandle, analysis, officialProfileSolved);
+        renderDashboard(cleanHandle, analysis);
         localStorage.setItem("lastCodeforcesHandle", cleanHandle);
         setStatus(`${submissions.length} submissions loaded`, "ready");
       } catch (error) {
