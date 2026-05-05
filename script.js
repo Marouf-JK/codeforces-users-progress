@@ -1,5 +1,7 @@
+function initDashboard() {
 const API_BASE = "https://codeforces.com/api/user.status";
     const RATING_API_BASE = "https://codeforces.com/api/user.rating";
+    const DAILY_JSON_URL = "codeforces_daily_solved.json";
     const TIME_ZONE = "Asia/Amman";
 
     const pageTitle = document.querySelector("#pageTitle");
@@ -48,28 +50,43 @@ const API_BASE = "https://codeforces.com/api/user.status";
     });
 
     function setStatus(text, type = "ready") {
+      if (!dataStatus) return;
       dataStatus.lastChild.textContent = ` ${text}`;
       const dot = dataStatus.querySelector(".status-dot");
       const color = type === "error" ? "var(--danger)" : type === "loading" ? "var(--strong)" : "var(--medium)";
-      dot.style.background = color;
+      if (dot) dot.style.background = color;
       dataStatus.style.borderColor = type === "error" ? "rgba(255, 107, 107, 0.45)" : "var(--border)";
     }
 
     function showError(message) {
+      if (!errorMessage) return;
       errorMessage.textContent = message;
       errorMessage.classList.add("is-visible");
     }
 
     function clearError() {
+      if (!errorMessage) return;
       errorMessage.textContent = "";
       errorMessage.classList.remove("is-visible");
     }
 
     function setLoading(isLoading) {
-      loadButton.disabled = isLoading;
-      handleInput.disabled = isLoading;
-      loadButton.textContent = isLoading ? "Loading..." : "Load Dashboard";
-      setStatus(isLoading ? "Fetching Codeforces data" : "Ready", isLoading ? "loading" : "ready");
+      if (loadButton) {
+        loadButton.disabled = isLoading;
+        loadButton.textContent = isLoading ? "Loading handle..." : "Load Dashboard";
+      }
+      if (handleInput) {
+        handleInput.disabled = isLoading;
+      }
+      setStatus(isLoading ? "Loading handle..." : "Ready", isLoading ? "loading" : "ready");
+    }
+
+    function bindEvent(element, eventName, handler, elementName) {
+      if (element) {
+        element.addEventListener(eventName, handler);
+      } else {
+        console.error("Missing element:", elementName);
+      }
     }
 
     function switchTab(tabName) {
@@ -193,7 +210,13 @@ const API_BASE = "https://codeforces.com/api/user.status";
 
     async function fetchSubmissions(handle) {
       const url = `${API_BASE}?handle=${encodeURIComponent(handle)}&from=1&count=100000`;
-      const response = await fetch(url);
+      let response;
+
+      try {
+        response = await fetch(url);
+      } catch (error) {
+        throw new Error("Codeforces API unavailable");
+      }
 
       if (!response.ok) {
         throw new Error(`Codeforces returned HTTP ${response.status}. Please try again.`);
@@ -201,7 +224,11 @@ const API_BASE = "https://codeforces.com/api/user.status";
 
       const payload = await response.json();
       if (payload.status !== "OK") {
-        throw new Error(payload.comment || "Codeforces API returned an error.");
+        const comment = payload.comment || "Codeforces API returned an error.";
+        if (comment.toLowerCase().includes("not found")) {
+          throw new Error("Handle not found");
+        }
+        throw new Error(comment);
       }
 
       return payload.result || [];
@@ -209,7 +236,13 @@ const API_BASE = "https://codeforces.com/api/user.status";
 
     async function fetchContestRatings(handle) {
       const url = `${RATING_API_BASE}?handle=${encodeURIComponent(handle)}`;
-      const response = await fetch(url);
+      let response;
+
+      try {
+        response = await fetch(url);
+      } catch (error) {
+        throw new Error("Codeforces API unavailable");
+      }
 
       if (!response.ok) {
         throw new Error(`Codeforces rating API returned HTTP ${response.status}. Please try again.`);
@@ -217,7 +250,11 @@ const API_BASE = "https://codeforces.com/api/user.status";
 
       const payload = await response.json();
       if (payload.status !== "OK") {
-        throw new Error(payload.comment || "Codeforces rating API returned an error.");
+        const comment = payload.comment || "Codeforces rating API returned an error.";
+        if (comment.toLowerCase().includes("not found")) {
+          throw new Error("Handle not found");
+        }
+        throw new Error(comment);
       }
 
       return payload.result || [];
@@ -761,7 +798,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderProblemList(problems) {
-      const query = problemFilter.value.trim().toLowerCase();
+      const query = problemFilter ? problemFilter.value.trim().toLowerCase() : "";
       const filteredProblems = query
         ? problems.filter((problem) => {
             const searchable = [
@@ -855,11 +892,11 @@ const API_BASE = "https://codeforces.com/api/user.status";
       (month.days || []).forEach((day) => daysGrid.appendChild(createDayBox(day)));
       panel.appendChild(daysGrid);
 
-      button.addEventListener("click", () => {
+      bindEvent(button, "click", () => {
         const isOpen = button.getAttribute("aria-expanded") === "true";
         button.setAttribute("aria-expanded", String(!isOpen));
         setPanelHeight(card, panel, !isOpen);
-      });
+      }, "month accordion button");
 
       card.append(button, panel);
       return card;
@@ -878,6 +915,61 @@ const API_BASE = "https://codeforces.com/api/user.status";
       });
     }
 
+    async function loadDailyJsonFallback() {
+      try {
+        const response = await fetch(DAILY_JSON_URL);
+        if (!response.ok) return;
+
+        const months = await response.json();
+        if (!Array.isArray(months) || !months.length || currentAnalysis) return;
+
+        renderDailyJsonFallback(months);
+      } catch (error) {
+        console.info("Daily JSON fallback was not loaded.", error);
+      }
+    }
+
+    function renderDailyJsonFallback(months) {
+      const days = months.flatMap((month) => month.days || []);
+      const totalSolved = months.reduce((sum, month) => sum + Number(month.totalSolved || 0), 0);
+      const activeDays = days.filter((day) => Number(day.solved || 0) > 0);
+      const zeroDays = days.filter((day) => Number(day.solved || 0) === 0);
+      const bestDay = activeDays.reduce((best, day) => {
+        return !best || Number(day.solved || 0) > Number(best.solved || 0) ? day : best;
+      }, null);
+      const average = activeDays.length ? totalSolved / activeDays.length : 0;
+
+      pageTitle.textContent = "Codeforces Progress";
+      if (emptyState) emptyState.classList.add("is-hidden");
+      if (dashboardShell) dashboardShell.classList.remove("is-hidden");
+      switchTab("overview");
+
+      summaryGrid.innerHTML = [
+        { label: "Unique AC from saved JSON", value: totalSolved, subtext: "Static fallback data" },
+        { label: "Active days", value: activeDays.length, subtext: "Days with at least one solve" },
+        { label: "Zero days", value: zeroDays.length, subtext: "Tracked days with no solves" },
+        { label: "Average per active day", value: average.toFixed(2), subtext: "Problems per active day" },
+        {
+          label: "Best training day",
+          value: bestDay ? bestDay.solved : 0,
+          subtext: bestDay ? dateFormatter.format(parseDateKey(bestDay.date)) : "No accepted submissions"
+        }
+      ].map((metric) => `
+        <article class="metric-card">
+          <div class="metric-label">${metric.label}</div>
+          <div class="metric-value">${metric.value}</div>
+          <div class="metric-subtext">${metric.subtext}</div>
+        </article>
+      `).join("");
+
+      if (profileCountNote) {
+        profileCountNote.textContent = "Showing saved daily JSON fallback. Enter a handle to fetch fresh Codeforces API data.";
+      }
+
+      renderMonths(months);
+      setStatus("Saved daily JSON loaded", "ready");
+    }
+
     function clearDashboard() {
       currentAnalysis = null;
       summaryGrid.innerHTML = "";
@@ -893,11 +985,13 @@ const API_BASE = "https://codeforces.com/api/user.status";
       monthlyImprovement.innerHTML = "";
       contestPerformance.innerHTML = "";
       problemListView.innerHTML = "";
-      problemFilter.value = "";
+      if (problemFilter) {
+        problemFilter.value = "";
+      }
     }
 
     async function loadDashboard(handle) {
-      const cleanHandle = handle.trim();
+      const cleanHandle = String(handle || "").trim();
       if (!cleanHandle) {
         showError("Please enter a Codeforces handle.");
         return;
@@ -920,33 +1014,75 @@ const API_BASE = "https://codeforces.com/api/user.status";
       } catch (error) {
         console.error(error);
         pageTitle.textContent = "Codeforces Progress";
-        showError(`Could not load "${cleanHandle}". ${error.message}`);
+        const message = getUserFacingError(error);
+        showError(message);
         setStatus("Load failed", "error");
       } finally {
         setLoading(false);
       }
     }
 
-    handleForm.addEventListener("submit", (event) => {
+    function getUserFacingError(error) {
+      const message = String(error?.message || "");
+      const lowerMessage = message.toLowerCase();
+
+      if (lowerMessage.includes("handle not found") || lowerMessage.includes("not found")) {
+        return "Handle not found";
+      }
+
+      if (
+        lowerMessage.includes("codeforces api unavailable")
+        || lowerMessage.includes("failed to fetch")
+        || lowerMessage.includes("network")
+        || lowerMessage.includes("http 5")
+      ) {
+        return "Codeforces API unavailable";
+      }
+
+      return "Failed to load data";
+    }
+
+    bindEvent(handleForm, "submit", (event) => {
       event.preventDefault();
+      if (!handleInput) {
+        console.error("Missing element:", "handleInput");
+        return;
+      }
       loadDashboard(handleInput.value);
-    });
+    }, "handleForm");
 
-    tabButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        switchTab(button.dataset.tab);
+    if (tabButtons.length) {
+      tabButtons.forEach((button) => {
+        bindEvent(button, "click", () => {
+          switchTab(button.dataset.tab);
+        }, "tab button");
       });
-    });
+    } else {
+      console.error("Missing element:", "tabButtons");
+    }
 
-    problemFilter.addEventListener("input", () => {
+    bindEvent(problemFilter, "input", () => {
       if (currentAnalysis) {
         renderProblems(currentAnalysis);
       }
-    });
+    }, "problemFilter");
 
-    window.addEventListener("resize", () => {
+    bindEvent(window, "resize", () => {
       document.querySelectorAll(".month-card.is-open").forEach((card) => {
         const panel = card.querySelector(".month-panel");
-        panel.style.maxHeight = `${panel.scrollHeight}px`;
+        if (panel) {
+          panel.style.maxHeight = `${panel.scrollHeight}px`;
+        } else {
+          console.error("Missing element:", "month panel");
+        }
       });
-    });
+    }, "window");
+
+    loadDailyJsonFallback();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initDashboard);
+} else {
+  initDashboard();
+}
