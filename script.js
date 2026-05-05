@@ -80,12 +80,11 @@ const API_BASE = "https://codeforces.com/api/user.status";
     function setLoading(isLoading) {
       if (loadButton) {
         loadButton.disabled = isLoading;
-        loadButton.textContent = isLoading ? "Loading handle..." : "Load Dashboard";
+        loadButton.textContent = isLoading ? "Loading..." : "Load Dashboard";
       }
       if (handleInput) {
         handleInput.disabled = isLoading;
       }
-      setStatus(isLoading ? "Loading handle..." : "Ready", isLoading ? "loading" : "ready");
     }
 
     function switchTab(tabName) {
@@ -909,6 +908,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
       clearError();
       clearDashboard();
       setLoading(true);
+      setStatus("Loading...", "loading");
 
       try {
         const [submissions, contestRatings] = await Promise.all([
@@ -918,7 +918,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
         const analysis = analyzeSubmissions(submissions, contestRatings);
         renderDashboard(cleanHandle, analysis);
         localStorage.setItem("lastCodeforcesHandle", cleanHandle);
-        setStatus(`${submissions.length} submissions loaded`, "ready");
+        setStatus("Loaded", "ready");
       } catch (error) {
         console.error(error);
         pageTitle.textContent = "Codeforces Progress";
