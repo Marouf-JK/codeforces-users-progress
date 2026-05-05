@@ -9,7 +9,10 @@ function addSafeEventListener(element, eventName, handler, elementName) {
 function initDashboard() {
 const API_BASE = "https://codeforces.com/api/user.status";
     const RATING_API_BASE = "https://codeforces.com/api/user.rating";
-    const DAILY_JSON_URL = "codeforces_daily_solved.json";
+    const CORS_PROXIES = [
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+    ];
     const TIME_ZONE = "Asia/Amman";
 
     const pageTitle = document.querySelector("#pageTitle");
@@ -260,35 +263,72 @@ const API_BASE = "https://codeforces.com/api/user.status";
       return payload.result || [];
     }
 
-    async function fetchOfficialProfileSolvedCount(handle) {
-      const url = `/api/total-solved?handle=${encodeURIComponent(handle)}`;
+    async function fetchOfficialSolved(handle) {
+      console.log("Fetching profile HTML for:", handle);
+      const profileUrl = `https://codeforces.com/profile/${encodeURIComponent(handle)}`;
 
       try {
-        const response = await fetch(url);
+        const html = await fetchProfileHtmlViaProxy(profileUrl);
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const counters = [...doc.querySelectorAll("._UserActivityFrame_counterValue")];
+        let solvedCounter = counters[0] || null;
 
-        if (!response.ok) {
-          throw new Error(`Backend returned HTTP ${response.status}.`);
+        for (const counter of counters) {
+          const frameText = counter.closest("._UserActivityFrame")?.textContent || "";
+          if (/solved/i.test(frameText)) {
+            solvedCounter = counter;
+            break;
+          }
         }
 
-        const payload = await response.json();
+        const match = solvedCounter?.textContent?.match(/\d+/);
+        const fallbackText = doc.body?.textContent || "";
+        const fallbackMatch = fallbackText.match(/Solved\s+for\s+all\s+time\s*(\d+)\s+problems/i)
+          || fallbackText.match(/(\d+)\s+problems\s+Solved\s+for\s+all\s+time/i);
+        const solvedMatch = match || fallbackMatch;
 
-        if (!Number.isFinite(payload.totalSolved)) {
-          throw new Error(payload.error || "Backend did not return totalSolved.");
+        if (!solvedMatch) {
+          throw new Error("Could not parse solved count from profile HTML.");
         }
+
+        const totalSolved = Number(solvedMatch[1] || solvedMatch[0]);
+        console.log("Parsed solved count:", totalSolved);
 
         return {
-          value: payload.totalSolved,
+          value: totalSolved,
           available: true,
           error: null
         };
       } catch (error) {
         console.warn("Official profile solved count unavailable.", error);
+        console.log("Parsed solved count:", null);
         return {
           value: null,
           available: false,
           error
         };
       }
+    }
+
+    async function fetchProfileHtmlViaProxy(profileUrl) {
+      const errors = [];
+
+      for (const makeProxyUrl of CORS_PROXIES) {
+        const url = makeProxyUrl(profileUrl);
+
+        try {
+          const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Profile proxy returned HTTP ${response.status}.`);
+        }
+
+          return await response.text();
+      } catch (error) {
+          errors.push(error.message);
+      }
+    }
+
+      throw new Error(`All profile proxies failed: ${errors.join("; ")}`);
     }
 
     function analyzeSubmissions(rawSubmissions, contestRatings = []) {
@@ -613,16 +653,14 @@ const API_BASE = "https://codeforces.com/api/user.status";
       const bestDayText = analysis.bestDay
         ? `${analysis.bestDay.solved} on ${dateFormatter.format(parseDateKey(analysis.bestDay.date))}`
         : "No accepted submissions";
-      const officialValue = officialProfileSolved.available ? officialProfileSolved.value : "Unavailable";
+      const officialValue = officialProfileSolved.available ? officialProfileSolved.value : "Could not load official solved count";
 
       profileCountNote.textContent = officialProfileSolved.available
         ? "Total solved comes from the Codeforces profile page. All detailed analytics use public user.status submissions."
-        : "Warning: official profile solved count could not be fetched from the backend. Analytics below still use public user.status submissions.";
+        : "Could not load official solved count. Analytics below still use public user.status submissions.";
 
       const metrics = [
         { label: "Total solved", value: officialValue, subtext: "Official Codeforces profile count" },
-        { label: "Unique AC from API", value: analysis.totalSolved, subtext: "Unique accepted problems from user.status" },
-        { label: "Accepted submissions", value: analysis.debug.acceptedSubmissions, subtext: "All OK submissions from user.status" },
         { label: "Active days", value: analysis.activeDays.length, subtext: "Days with at least one solve" },
         { label: "Zero days", value: analysis.zeroDays.length, subtext: "Tracked days with no solves" },
         { label: "Average per active day", value: average.toFixed(2), subtext: "Unique problems per active day" },
@@ -915,61 +953,6 @@ const API_BASE = "https://codeforces.com/api/user.status";
       });
     }
 
-    async function loadDailyJsonFallback() {
-      try {
-        const response = await fetch(DAILY_JSON_URL);
-        if (!response.ok) return;
-
-        const months = await response.json();
-        if (!Array.isArray(months) || !months.length || currentAnalysis) return;
-
-        renderDailyJsonFallback(months);
-      } catch (error) {
-        console.info("Daily JSON fallback was not loaded.", error);
-      }
-    }
-
-    function renderDailyJsonFallback(months) {
-      const days = months.flatMap((month) => month.days || []);
-      const totalSolved = months.reduce((sum, month) => sum + Number(month.totalSolved || 0), 0);
-      const activeDays = days.filter((day) => Number(day.solved || 0) > 0);
-      const zeroDays = days.filter((day) => Number(day.solved || 0) === 0);
-      const bestDay = activeDays.reduce((best, day) => {
-        return !best || Number(day.solved || 0) > Number(best.solved || 0) ? day : best;
-      }, null);
-      const average = activeDays.length ? totalSolved / activeDays.length : 0;
-
-      pageTitle.textContent = "Codeforces Progress";
-      if (emptyState) emptyState.classList.add("is-hidden");
-      if (dashboardShell) dashboardShell.classList.remove("is-hidden");
-      switchTab("overview");
-
-      summaryGrid.innerHTML = [
-        { label: "Unique AC from saved JSON", value: totalSolved, subtext: "Static fallback data" },
-        { label: "Active days", value: activeDays.length, subtext: "Days with at least one solve" },
-        { label: "Zero days", value: zeroDays.length, subtext: "Tracked days with no solves" },
-        { label: "Average per active day", value: average.toFixed(2), subtext: "Problems per active day" },
-        {
-          label: "Best training day",
-          value: bestDay ? bestDay.solved : 0,
-          subtext: bestDay ? dateFormatter.format(parseDateKey(bestDay.date)) : "No accepted submissions"
-        }
-      ].map((metric) => `
-        <article class="metric-card">
-          <div class="metric-label">${metric.label}</div>
-          <div class="metric-value">${metric.value}</div>
-          <div class="metric-subtext">${metric.subtext}</div>
-        </article>
-      `).join("");
-
-      if (profileCountNote) {
-        profileCountNote.textContent = "Showing saved daily JSON fallback. Enter a handle to fetch fresh Codeforces API data.";
-      }
-
-      renderMonths(months);
-      setStatus("Saved daily JSON loaded", "ready");
-    }
-
     function clearDashboard() {
       currentAnalysis = null;
       summaryGrid.innerHTML = "";
@@ -1005,7 +988,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
         const [submissions, contestRatings, officialProfileSolved] = await Promise.all([
           fetchSubmissions(cleanHandle),
           fetchContestRatings(cleanHandle),
-          fetchOfficialProfileSolvedCount(cleanHandle)
+          fetchOfficialSolved(cleanHandle)
         ]);
         const analysis = analyzeSubmissions(submissions, contestRatings);
         renderDashboard(cleanHandle, analysis, officialProfileSolved);
@@ -1078,7 +1061,6 @@ const API_BASE = "https://codeforces.com/api/user.status";
       });
     }, "window");
 
-    loadDailyJsonFallback();
 }
 
 if (document.readyState === "loading") {
