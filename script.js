@@ -23,7 +23,6 @@ const API_BASE = "https://codeforces.com/api/user.status";
     const tabPages = document.querySelectorAll("[data-tab-page]");
     const summaryGrid = document.querySelector("#summaryGrid");
     const profileCountNote = document.querySelector("#profileCountNote");
-    const debugPanel = document.querySelector("#debugPanel");
     const monthsContainer = document.querySelector("#monthsContainer");
     const ratingBreakdown = document.querySelector("#ratingBreakdown");
     const tagsBreakdown = document.querySelector("#tagsBreakdown");
@@ -400,9 +399,6 @@ const API_BASE = "https://codeforces.com/api/user.status";
         return a.key.localeCompare(b.key);
       });
       debug.uniqueSolvedCount = solvedProblems.size;
-      console.log("Codeforces solved-count debug", debug);
-      console.log("Top skipped accepted submissions", debug.topSkippedAcceptedSubmissions);
-
       return {
         submissions,
         months,
@@ -543,7 +539,6 @@ const API_BASE = "https://codeforces.com/api/user.status";
 
     function renderOverview(analysis) {
       renderSummary(analysis);
-      renderDebugPanel(analysis.debug);
     }
 
     function renderSkills(analysis) {
@@ -576,6 +571,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderSummary(analysis) {
+      if (!summaryGrid) return;
       const average = analysis.activeDays.length ? analysis.totalSolved / analysis.activeDays.length : 0;
       const bestDayText = analysis.bestDay
         ? `${analysis.bestDay.solved} on ${dateFormatter.format(parseDateKey(analysis.bestDay.date))}`
@@ -601,25 +597,8 @@ const API_BASE = "https://codeforces.com/api/user.status";
       `).join("");
     }
 
-    function renderDebugPanel(debug) {
-      const stats = [
-        { label: "API-based unique solved count", value: debug.uniqueSolvedCount },
-        { label: "Accepted submissions count", value: debug.acceptedSubmissions },
-        { label: "Skipped accepted submissions", value: debug.skippedAcceptedSubmissionsBecauseMissingKey },
-        { label: "Missing contestId accepted", value: debug.acceptedSubmissionsWithMissingContestId },
-        { label: "Missing index accepted", value: debug.acceptedSubmissionsWithMissingIndex },
-        { label: "Gym-like accepted", value: debug.acceptedGymLikeSubmissions }
-      ];
-
-      debugPanel.innerHTML = stats.map((stat) => `
-        <div class="stat-box">
-          <div class="stat-label">${stat.label}</div>
-          <div class="stat-value">${stat.value}</div>
-        </div>
-      `).join("");
-    }
-
     function renderBreakdown(container, map, emptyText, limit = 8) {
+      if (!container) return;
       const entries = sortedEntries(map).slice(0, limit);
       const maxValue = entries[0]?.[1] || 1;
 
@@ -642,6 +621,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderConsistency(consistency, totalTrackedDays) {
+      if (!consistencyStats) return;
       const stats = [
         { label: "Current streak", value: `${consistency.currentStreak} days` },
         { label: "Longest streak", value: `${consistency.longestStreak} days` },
@@ -660,6 +640,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderAttempts(analysis) {
+      if (!attemptsAnalysis) return;
       const entries = [...analysis.firstAcceptedByProblem.keys()].map((key) => {
         const problem = analysis.problemDetails.get(key);
         return [problemName(problem), analysis.attemptsByProblem.get(key) || 1];
@@ -681,6 +662,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderRepeatedAccepted(analysis) {
+      if (!repeatedAccepted) return;
       const entries = [...analysis.acceptedCountByProblem.entries()]
         .filter(([, count]) => count > 1)
         .map(([key, count]) => {
@@ -706,6 +688,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderBestTrainingDay(analysis) {
+      if (!bestTrainingDayDetails) return;
       if (!analysis.bestDay) {
         bestTrainingDayDetails.innerHTML = '<div class="empty">No solved problems found.</div>';
         return;
@@ -722,6 +705,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderMonthlyImprovement(months) {
+      if (!monthlyImprovement) return;
       if (!months.length) {
         monthlyImprovement.innerHTML = '<div class="empty">No monthly solved data found.</div>';
         return;
@@ -740,6 +724,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderContestPerformance(contests) {
+      if (!contestPerformance) return;
       if (!contests.length) {
         contestPerformance.innerHTML = '<div class="empty">No rated contest history found.</div>';
         return;
@@ -761,6 +746,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderProblemList(problems) {
+      if (!problemListView) return;
       const query = problemFilter ? problemFilter.value.trim().toLowerCase() : "";
       const filteredProblems = query
         ? problems.filter((problem) => {
@@ -866,6 +852,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
     }
 
     function renderMonths(months) {
+      if (!monthsContainer) return;
       monthsContainer.innerHTML = "";
 
       if (!months.length) {
@@ -880,21 +867,28 @@ const API_BASE = "https://codeforces.com/api/user.status";
 
     function clearDashboard() {
       currentAnalysis = null;
-      summaryGrid.innerHTML = "";
-      debugPanel.innerHTML = "";
-      monthsContainer.innerHTML = "";
-      ratingBreakdown.innerHTML = "";
-      tagsBreakdown.innerHTML = "";
-      verdictAnalysis.innerHTML = "";
-      consistencyStats.innerHTML = "";
-      attemptsAnalysis.innerHTML = "";
-      repeatedAccepted.innerHTML = "";
-      bestTrainingDayDetails.innerHTML = "";
-      monthlyImprovement.innerHTML = "";
-      contestPerformance.innerHTML = "";
-      problemListView.innerHTML = "";
+      clearElement(summaryGrid, "summaryGrid");
+      clearElement(monthsContainer, "monthsContainer");
+      clearElement(ratingBreakdown, "ratingBreakdown");
+      clearElement(tagsBreakdown, "tagsBreakdown");
+      clearElement(verdictAnalysis, "verdictAnalysis");
+      clearElement(consistencyStats, "consistencyStats");
+      clearElement(attemptsAnalysis, "attemptsAnalysis");
+      clearElement(repeatedAccepted, "repeatedAccepted");
+      clearElement(bestTrainingDayDetails, "bestTrainingDayDetails");
+      clearElement(monthlyImprovement, "monthlyImprovement");
+      clearElement(contestPerformance, "contestPerformance");
+      clearElement(problemListView, "problemListView");
       if (problemFilter) {
         problemFilter.value = "";
+      }
+    }
+
+    function clearElement(element, elementName) {
+      if (element) {
+        element.innerHTML = "";
+      } else {
+        console.warn("Missing optional element:", elementName);
       }
     }
 
