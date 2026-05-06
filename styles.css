@@ -273,17 +273,6 @@
       color: var(--muted);
     }
 
-    .debug-details {
-      margin-top: 16px;
-    }
-
-    .debug-details summary {
-      cursor: pointer;
-      color: var(--text);
-      font-weight: 800;
-      margin-bottom: 12px;
-    }
-
     .metric-card {
       min-height: 116px;
       padding: 18px;
