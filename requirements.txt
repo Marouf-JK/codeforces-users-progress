@@ -1,7 +1,0 @@
-Flask
-requests
-<<<<<<< HEAD
-beautifulsoup4
-=======
-beautifulsoup4
->>>>>>> 4ae932b911d0de0d59fe1de9f1fa0f43de63ebd5
