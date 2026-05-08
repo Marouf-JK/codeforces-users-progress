@@ -212,7 +212,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
       try {
         response = await fetch(url);
       } catch (error) {
-        throw new Error("Codeforces API unavailable");
+        throw new Error("Codeforces API unavailable, Refresh");
       }
 
       if (!response.ok) {
@@ -238,7 +238,7 @@ const API_BASE = "https://codeforces.com/api/user.status";
       try {
         response = await fetch(url);
       } catch (error) {
-        throw new Error("Codeforces API unavailable");
+        throw new Error("Codeforces API unavailable, Refresh");
       }
 
       if (!response.ok) {
@@ -933,12 +933,12 @@ const API_BASE = "https://codeforces.com/api/user.status";
       }
 
       if (
-        lowerMessage.includes("codeforces api unavailable")
+        lowerMessage.includes("codeforces api unavailable, Refresh")
         || lowerMessage.includes("failed to fetch")
         || lowerMessage.includes("network")
         || lowerMessage.includes("http 5")
       ) {
-        return "Codeforces API unavailable";
+        return "Codeforces API unavailable, Refresh";
       }
 
       return "Failed to load data";
